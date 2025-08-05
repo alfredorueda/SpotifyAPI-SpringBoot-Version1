@@ -1,0 +1,254 @@
+### Track API - CRUD Operations for IntelliJ IDEA
+### Base URL: http://localhost:8080
+
+### 1. Get All Tracks (Initial state with sample data)
+GET http://localhost:8080/api/tracks
+Accept: application/json
+
+> {%
+client.test("Status code is 200", function () {
+    client.assert(response.status === 200, "Response status is not 200");
+});
+
+client.test("Response is an array", function () {
+    client.assert(Array.isArray(response.body), "Response is not an array");
+});
+
+client.test("Array contains sample tracks", function () {
+    client.assert(response.body.length >= 5, "Should have at least 5 sample tracks");
+});
+
+// Store first track ID for later use
+if (response.body.length > 0) {
+    client.global.set("first_track_id", response.body[0].id);
+}
+%}
+
+###
+
+### 2. Get Track by ID (using first sample track)
+GET http://localhost:8080/api/tracks/{{first_track_id}}
+Accept: application/json
+
+> {%
+client.test("Status code is 200", function () {
+    client.assert(response.status === 200, "Response status is not 200");
+});
+
+client.test("Response has correct track", function () {
+    client.assert(response.body.id === client.global.get("first_track_id"), "Track ID doesn't match");
+});
+%}
+
+###
+
+### 3. Get Track by Non-Existent ID
+GET http://localhost:8080/api/tracks/non-existent-id
+Accept: application/json
+
+> {%
+client.test("Status code is 404", function () {
+    client.assert(response.status === 404, "Response status is not 404");
+});
+%}
+
+###
+
+### 4. Create New Track
+POST http://localhost:8080/api/tracks
+Content-Type: application/json
+
+{
+    "title": "The Dark Side of the Moon",
+    "artist": "Pink Floyd",
+    "duration": 2583
+}
+
+> {%
+client.test("Status code is 201", function () {
+    client.assert(response.status === 201, "Response status is not 201");
+});
+
+client.test("Response has track with ID", function () {
+    client.assert(response.body.id !== null, "Track ID is null");
+    client.assert(response.body.id !== undefined, "Track ID is undefined");
+    
+    // Store the ID for other requests
+    client.global.set("new_track_id", response.body.id);
+});
+
+client.test("Response has correct track data", function () {
+    client.assert(response.body.title === "The Dark Side of the Moon", "Title doesn't match");
+    client.assert(response.body.artist === "Pink Floyd", "Artist doesn't match");
+    client.assert(response.body.duration === 2583, "Duration doesn't match");
+    client.assert(response.body.creationDate !== null, "Creation date is null");
+});
+%}
+
+###
+
+### 5. Create Another Track
+POST http://localhost:8080/api/tracks
+Content-Type: application/json
+
+{
+    "title": "Thriller",
+    "artist": "Michael Jackson",
+    "duration": 357
+}
+
+> {%
+client.test("Status code is 201", function () {
+    client.assert(response.status === 201, "Response status is not 201");
+});
+
+client.test("Response has track with ID", function () {
+    client.assert(response.body.id !== null, "Track ID is null");
+    
+    // Store the second ID for testing
+    client.global.set("second_track_id", response.body.id);
+});
+%}
+
+###
+
+### 6. Get All Tracks (After creating new tracks)
+GET http://localhost:8080/api/tracks
+Accept: application/json
+
+> {%
+client.test("Status code is 200", function () {
+    client.assert(response.status === 200, "Response status is not 200");
+});
+
+client.test("Response is an array", function () {
+    client.assert(Array.isArray(response.body), "Response is not an array");
+});
+
+client.test("Array contains more tracks", function () {
+    client.assert(response.body.length >= 7, "Should have at least 7 tracks now");
+});
+%}
+
+###
+
+### 7. Update Track
+PUT http://localhost:8080/api/tracks/{{new_track_id}}
+Content-Type: application/json
+
+{
+    "title": "The Dark Side of the Moon (Remastered)",
+    "artist": "Pink Floyd",
+    "duration": 2600
+}
+
+> {%
+client.test("Status code is 200", function () {
+    client.assert(response.status === 200, "Response status is not 200");
+});
+
+client.test("Track was updated correctly", function () {
+    client.assert(response.body.title === "The Dark Side of the Moon (Remastered)", "Title not updated");
+    client.assert(response.body.artist === "Pink Floyd", "Artist changed unexpectedly");
+    client.assert(response.body.duration === 2600, "Duration not updated");
+    client.assert(response.body.id === client.global.get("new_track_id"), "ID changed unexpectedly");
+});
+%}
+
+###
+
+### 8. Update Non-Existent Track
+PUT http://localhost:8080/api/tracks/non-existent-id
+Content-Type: application/json
+
+{
+    "title": "Some Title",
+    "artist": "Some Artist",
+    "duration": 200
+}
+
+> {%
+client.test("Status code is 404", function () {
+    client.assert(response.status === 404, "Response status is not 404");
+});
+%}
+
+###
+
+### 9. Create Track for Deletion Test
+POST http://localhost:8080/api/tracks
+Content-Type: application/json
+
+{
+    "title": "Track to Delete",
+    "artist": "Test Artist",
+    "duration": 180
+}
+
+> {%
+client.test("Status code is 201", function () {
+    client.assert(response.status === 201, "Response status is not 201");
+});
+
+client.test("Response has track with ID", function () {
+    client.assert(response.body.id !== null, "Track ID is null");
+    
+    // Store the ID for deletion test
+    client.global.set("track_to_delete", response.body.id);
+});
+%}
+
+###
+
+### 10. Delete Track
+DELETE http://localhost:8080/api/tracks/{{track_to_delete}}
+
+> {%
+client.test("Status code is 204", function () {
+    client.assert(response.status === 204, "Response status is not 204");
+});
+%}
+
+###
+
+### 11. Verify Track Deleted
+GET http://localhost:8080/api/tracks/{{track_to_delete}}
+Accept: application/json
+
+> {%
+client.test("Status code is 404", function () {
+    client.assert(response.status === 404, "Response status is not 404, track still exists");
+});
+%}
+
+###
+
+### 12. Delete Non-Existent Track
+DELETE http://localhost:8080/api/tracks/non-existent-id
+
+> {%
+client.test("Status code is 404", function () {
+    client.assert(response.status === 404, "Response status is not 404");
+});
+%}
+
+###
+
+### 13. Final - Get All Tracks
+GET http://localhost:8080/api/tracks
+Accept: application/json
+
+> {%
+client.test("Status code is 200", function () {
+    client.assert(response.status === 200, "Response status is not 200");
+});
+
+client.test("Response is an array", function () {
+    client.assert(Array.isArray(response.body), "Response is not an array");
+});
+
+console.log("Final tracks count:", response.body.length);
+console.log("Test completed successfully!");
+%}
+
+###
