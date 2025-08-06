@@ -2,23 +2,65 @@
 
 A simple REST API for managing music tracks using Spring Boot, JPA, and MySQL.
 
-## Current Version: JPA with MySQL
+## Current Version: Service Layer Architecture
 
-This version refactors the application to use MySQL database persistence instead of in-memory storage.
+This version introduces a proper service layer, demonstrating clean architecture principles and dependency injection best practices.
 
 ### Features
 
-- **JPA Entity**: The `Track` entity is now a JPA entity with proper annotations
-- **Spring Data Repository**: Direct use of `TrackRepository` from the controller
-- **MySQL Database**: Persistence in MySQL instead of memory
+- **JPA Entity**: The `Track` entity is a JPA entity with proper annotations
+- **Service Layer**: Business logic separated into `TrackService`
+- **Repository Layer**: Data access through Spring Data Repository
+- **Constructor-based Dependency Injection**: Demonstrates Spring's recommended DI approach
+- **MySQL Database**: Persistence in MySQL with Docker
 - **Sample Data**: Automatic initialization with sample tracks
 - **Complete CRUD Operations**: Create, Read, Update, Delete
 
-### ⚠️ Architectural Note
+### 🏗️ Architecture Overview
 
-**This version intentionally violates the Single Responsibility Principle** by using the Repository directly from the Controller.
-This is deliberate to maintain simplicity in this incremental iteration. 
-In future versions, we will introduce a service layer between the Controller and Repository.
+The application now follows a proper layered architecture:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   REST Client   │───▶│   Controller    │───▶│     Service     │───▶│   Repository    │
+│  (Postman/curl) │    │ (HTTP handling) │    │ (Business logic)│    │ (Data access)   │
+└─────────────────┘    └─────────────────┘    └─────────────────┘    └─────────────────┘
+                                                                               │
+                                                                               ▼
+                                                                       ┌─────────────────┐
+                                                                       │ MySQL Database  │
+                                                                       └─────────────────┘
+```
+
+**Layer Responsibilities:**
+- **Controller**: HTTP request/response handling, data validation, status codes
+- **Service**: Business logic, data transformation, transaction management
+- **Repository**: Data persistence, database queries
+- **Entity**: Data model representation
+
+### 📚 Dependency Injection Learning Points
+
+This application demonstrates **constructor-based dependency injection**:
+
+1. **TrackController** depends on **TrackService**
+2. **TrackService** depends on **TrackRepository**
+3. **DataInitializer** depends on **TrackService**
+
+**Why Constructor Injection over @Autowired:**
+- ✅ Makes dependencies explicit and immutable
+- ✅ Enables easier unit testing (can inject mocks)
+- ✅ Prevents NullPointerException issues
+- ✅ Follows Spring's recommended practices
+- ✅ Ensures required dependencies are provided at construction time
+
+**Spring's IoC Container manages the dependency chain:**
+```
+TrackRepository (created first)
+    ↓
+TrackService (TrackRepository injected)
+    ↓
+TrackController (TrackService injected)
+```
 
 ## MySQL Configuration with Docker
 
@@ -34,43 +76,8 @@ brew install --cask docker
 
 ### 2. Run MySQL with Docker
 
-#### Option A: Simple command
-```bash
-# Run MySQL container
-docker run --name mysql-trackapi \
-  -e MYSQL_ROOT_PASSWORD=password \
-  -e MYSQL_DATABASE=trackdb \
-  -p 3306:3306 \
-  -d mysql:8.0
+A `docker-compose.yml` file is included in the project root:
 
-# Verify it's running
-docker ps
-```
-
-#### Option B: Docker Compose (Recommended)
-
-A `docker-compose.yml` file is already included in the project root:
-
-```yaml
-version: '3.8'
-services:
-  mysql:
-    image: mysql:8.0
-    container_name: mysql-trackapi
-    environment:
-      MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: trackdb
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-    restart: unless-stopped
-
-volumes:
-  mysql_data:
-```
-
-Then run:
 ```bash
 # Start MySQL
 docker-compose up -d
@@ -82,25 +89,11 @@ docker-compose down
 docker-compose logs mysql
 ```
 
-### 3. Application Configuration
-
-The current configuration in `application.properties` is already set up for Docker:
-
-```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/trackdb?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
-spring.datasource.username=root
-spring.datasource.password=password
-```
-
 ## Running the Application
 
 ### 1. Start MySQL (Docker)
 ```bash
-# With docker-compose (recommended)
 docker-compose up -d
-
-# Or with docker run
-docker start mysql-trackapi
 ```
 
 ### 2. Compile and run the application
@@ -123,52 +116,6 @@ The application will:
 2. Automatically create the necessary tables
 3. Insert 5 sample tracks if the database is empty
 4. Be available at `http://localhost:8080`
-
-## Useful Docker Commands
-
-```bash
-# View running containers
-docker ps
-
-# View MySQL logs
-docker logs mysql-trackapi
-
-# Connect to MySQL from command line
-docker exec -it mysql-trackapi mysql -u root -p
-
-# Stop MySQL
-docker stop mysql-trackapi
-
-# Start MySQL
-docker start mysql-trackapi
-
-# Remove container (WARNING! Data will be lost)
-docker rm mysql-trackapi
-
-# With docker-compose - remove everything including volumes
-docker-compose down -v
-```
-
-## Database Access
-
-### From command line:
-```bash
-# Connect to MySQL in the container
-docker exec -it mysql-trackapi mysql -u root -p
-# Password: password
-
-# View tables
-USE trackdb;
-SHOW TABLES;
-SELECT * FROM tracks;
-```
-
-### From GUI tools:
-- **Host**: localhost
-- **Port**: 3306
-- **User**: root
-- **Password**: password
-- **Database**: trackdb
 
 ## API Endpoints
 
@@ -202,17 +149,83 @@ SELECT * FROM tracks;
 ```
 src/
 ├── main/java/com/neueda/trackapi/
-│   ├── TrackApiApplication.java      # Main class
+│   ├── TrackApiApplication.java      # Main Spring Boot class
 │   ├── controller/
-│   │   └── TrackController.java      # REST Controller (uses Repository directly)
+│   │   └── TrackController.java      # REST endpoints (uses TrackService)
+│   ├── service/
+│   │   └── TrackService.java         # Business logic layer
+│   ├── repository/
+│   │   └── TrackRepository.java      # Data access layer
 │   ├── model/
 │   │   └── Track.java                # JPA Entity
-│   ├── repository/
-│   │   └── TrackRepository.java      # Spring Data Repository
 │   └── config/
-│       └── DataInitializer.java     # Sample data initialization
+│       └── DataInitializer.java     # Sample data setup (uses TrackService)
 └── resources/
     └── application.properties        # MySQL configuration
+```
+
+## Code Examples
+
+### Constructor-based Dependency Injection
+
+**TrackController Example:**
+```java
+@RestController
+public class TrackController {
+    private final TrackService trackService;
+    
+    // Constructor injection - Spring automatically provides TrackService
+    public TrackController(TrackService trackService) {
+        this.trackService = trackService;
+    }
+    
+    @GetMapping("/api/tracks")
+    public List<Track> getAllTracks() {
+        return trackService.getAllTracks(); // Delegate to service
+    }
+}
+```
+
+**TrackService Example:**
+```java
+@Service
+public class TrackService {
+    private final TrackRepository trackRepository;
+    
+    // Constructor injection - Spring automatically provides TrackRepository
+    public TrackService(TrackRepository trackRepository) {
+        this.trackRepository = trackRepository;
+    }
+    
+    public List<Track> getAllTracks() {
+        return trackRepository.findAll(); // Delegate to repository
+    }
+}
+```
+
+## Useful Docker Commands
+
+```bash
+# View running containers
+docker ps
+
+# View MySQL logs
+docker logs mysql-trackapi
+
+# Connect to MySQL from command line
+docker exec -it mysql-trackapi mysql -u root -p
+
+# Stop MySQL
+docker stop mysql-trackapi
+
+# Start MySQL
+docker start mysql-trackapi
+
+# Remove container (WARNING! Data will be lost)
+docker rm mysql-trackapi
+
+# With docker-compose - remove everything including volumes
+docker-compose down -v
 ```
 
 ## Troubleshooting
@@ -252,9 +265,10 @@ docker-compose up -d
 
 ## Next Steps
 
-In future iterations:
-1. Introduce service layer (`TrackService`)
-2. Move business logic from Controller to Service
-3. Add validations
-4. Implement exception handling
-5. Add unit and integration testing
+Potential future improvements:
+1. Add input validation with `@Valid` annotations
+2. Implement global exception handling with `@ControllerAdvice`
+3. Add unit and integration tests
+4. Implement pagination for large datasets
+5. Add API documentation with Swagger/OpenAPI
+6. Implement security with Spring Security

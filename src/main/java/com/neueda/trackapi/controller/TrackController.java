@@ -1,88 +1,119 @@
 package com.neueda.trackapi.controller;
 
 import com.neueda.trackapi.model.Track;
-import com.neueda.trackapi.repository.TrackRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.neueda.trackapi.service.TrackService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
+/**
+ * REST Controller for Track API endpoints.
+ * 
+ * This controller demonstrates proper layered architecture by:
+ * 1. Focusing solely on HTTP request/response handling
+ * 2. Delegating all business logic to the TrackService
+ * 3. Using constructor-based dependency injection
+ * 
+ * The controller acts as the presentation layer, translating HTTP requests
+ * into service method calls and converting service responses back to HTTP responses.
+ */
 @RestController
 @RequestMapping("/api/tracks")
 public class TrackController {
-    /**
-     * Repository for Track entity data access.
-     * This interface extends JpaRepository to provide standard CRUD operations.
-     * This violates the Single Responsibility Principle (SRP)
-     * as it combines data access logic with controller logic.
-     * This will be addressed in future refactoring.
-     */
-    private final TrackRepository trackRepository;
+    
+    private final TrackService trackService;
 
     /**
-     * Constructor-based dependency injection for TrackRepository.
-     * This is the recommended way to inject dependencies in Spring.
+     * Constructor-based dependency injection for TrackService.
+     * 
+     * Spring's IoC (Inversion of Control) container will:
+     * 1. Create a TrackService instance (injecting TrackRepository into it)
+     * 2. Create this TrackController instance
+     * 3. Inject the TrackService into this controller via this constructor
+     * 
+     * This creates a dependency chain: Controller -> Service -> Repository
+     * 
+     * @param trackService the service layer for track business logic
      */
-    public TrackController(TrackRepository trackRepository) {
-        this.trackRepository = trackRepository;
+    public TrackController(TrackService trackService) {
+        this.trackService = trackService;
     }
 
-    // GET /api/tracks - Get all tracks
+    /**
+     * GET /api/tracks - Retrieve all tracks
+     * 
+     * @return List of all tracks
+     */
     @GetMapping
     public List<Track> getAllTracks() {
-        return trackRepository.findAll();
+        return trackService.getAllTracks();
     }
 
-    // GET /api/tracks/{id} - Get track by ID
+    /**
+     * GET /api/tracks/{id} - Retrieve a track by ID
+     * 
+     * @param id the track ID
+     * @return ResponseEntity with track if found, 404 if not found
+     */
     @GetMapping("/{id}")
     public ResponseEntity<Track> getTrackById(@PathVariable String id) {
-        Optional<Track> track = trackRepository.findById(id);
-
-        if (track.isPresent()) {
-            return ResponseEntity.ok(track.get());
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+        Optional<Track> track = trackService.getTrackById(id);
+        
+        return track.map(ResponseEntity::ok)
+                   .orElse(ResponseEntity.notFound().build());
     }
 
-    // POST /api/tracks - Create a new track
+    /**
+     * POST /api/tracks - Create a new track
+     * 
+     * The service layer handles:
+     * - ID generation
+     * - Creation date setting
+     * - Persistence logic
+     * 
+     * @param track the track to create
+     * @return ResponseEntity with created track and 201 status
+     */
     @PostMapping
     public ResponseEntity<Track> createTrack(@RequestBody Track track) {
-        // Generate ID and set creation date
-        track.setId(UUID.randomUUID().toString());
-        track.setCreationDate(LocalDateTime.now());
-
-        Track savedTrack = trackRepository.save(track);
+        Track savedTrack = trackService.createTrack(track);
         return ResponseEntity.status(HttpStatus.CREATED).body(savedTrack);
     }
 
-    // PUT /api/tracks/{id} - Update an existing track
+    /**
+     * PUT /api/tracks/{id} - Update an existing track
+     * 
+     * The service layer handles:
+     * - Existence validation
+     * - Business logic for preserving ID and creation date
+     * - Update persistence
+     * 
+     * @param id the ID of the track to update
+     * @param updatedTrack the updated track data
+     * @return ResponseEntity with updated track if successful, 404 if not found
+     */
     @PutMapping("/{id}")
     public ResponseEntity<Track> updateTrack(@PathVariable String id, @RequestBody Track updatedTrack) {
-        Optional<Track> existingTrack = trackRepository.findById(id);
-
-        if (existingTrack.isPresent()) {
-            // Keep the original ID and creation date
-            updatedTrack.setId(id);
-            updatedTrack.setCreationDate(existingTrack.get().getCreationDate());
-
-            Track savedTrack = trackRepository.save(updatedTrack);
-            return ResponseEntity.ok(savedTrack);
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+        Optional<Track> result = trackService.updateTrack(id, updatedTrack);
+        
+        return result.map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
     }
 
-    // DELETE /api/tracks/{id} - Delete a track
+    /**
+     * DELETE /api/tracks/{id} - Delete a track
+     * 
+     * @param id the ID of the track to delete
+     * @return ResponseEntity with 204 (No Content) if successful, 404 if not found
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteTrack(@PathVariable String id) {
-        if (trackRepository.existsById(id)) {
-            trackRepository.deleteById(id);
+        boolean deleted = trackService.deleteTrack(id);
+        
+        if (deleted) {
             return ResponseEntity.noContent().build();
         } else {
             return ResponseEntity.notFound().build();
