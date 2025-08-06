@@ -1,12 +1,25 @@
 package com.neueda.trackapi.model;
 
+import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
+@Entity
+@Table(name = "tracks")
 public class Track {
+    
+    @Id
     private String id;
+    
+    @Column(nullable = false)
     private String title;
+    
+    @Column(nullable = false)
     private String artist;
+    
+    @Column(nullable = false)
     private Integer duration;
+    
+    @Column(name = "creation_date", nullable = false)
     private LocalDateTime creationDate;
 
     public Track() {
